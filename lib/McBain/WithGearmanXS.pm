@@ -211,6 +211,8 @@ L</"SYNOPSIS"> for an example.
 C<McBain::WithGearmanXS> depends on the following CPAN modules:
  
 =over
+
+=item * L<Carp>
  
 =item * L<Gearman::XS>
 
