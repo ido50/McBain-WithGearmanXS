@@ -2,5 +2,7 @@ Revision history for McBain-WithGearmanXS
 
 {{$NEXT}}
 
+	- Added support for OPTIONS requests
+
 1.000000  2013-12-19 00:52:55 Asia/Jerusalem
 	- First public release

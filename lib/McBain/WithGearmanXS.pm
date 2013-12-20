@@ -10,7 +10,7 @@ use Gearman::XS qw(:constants);
 use Gearman::XS::Worker;
 use JSON;
 
-our $VERSION = "1.000000";
+our $VERSION = "1.001000";
 $VERSION = eval $VERSION;
 
 =head1 NAME
@@ -140,8 +140,8 @@ hash-ref from it.
 sub generate_env {
 	my ($self, $job) = @_;
 
-	confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT or DELETE" }
-		unless $job->function_name =~ m/^(GET|POST|PUT|DELETE):[^:]+$/;
+	confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT, DELETE or OPTIONS" }
+		unless $job->function_name =~ m/^(GET|POST|PUT|DELETE|OPTIONS):[^:]+$/;
 
 	my ($method, $route) = split(/:/, $job->function_name);
 
