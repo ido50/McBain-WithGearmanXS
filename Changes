@@ -1,6 +1,8 @@
 Revision history for McBain-WithGearmanXS
 
 {{$NEXT}}
+	- Updated docs on how to use this runner module as McBain
+	  no longer uses the MCBAIN_WITH environment variable.
 
 1.001000  2013-12-20 15:42:29 Asia/Jerusalem
 

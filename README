@@ -7,11 +7,9 @@ SYNOPSIS
 
             #!/usr/bin/perl -w
 
-            BEGIN { $ENV{MCBAIN_WITH} = 'WithGearmanXS'; }
-
             use warnings;
             use strict;
-            use MyAPI;
+            use MyAPI -withGearmanXS;
 
             MyAPI->work('localhost', 4730);
 
@@ -96,12 +94,12 @@ METHODS REQUIRED BY MCBAIN
     client.
 
 CONFIGURATION AND ENVIRONMENT
-    No configuration files are required. To tell McBain to use this runner
-    module, the "MCBAIN_WITH" environment variable must be set to
-    "WithGearmanXS". See the "SYNOPSIS" for an example.
+    No configuration files are required.
 
 DEPENDENCIES
     "McBain::WithGearmanXS" depends on the following CPAN modules:
+
+    *   Carp
 
     *   Gearman::XS
 
