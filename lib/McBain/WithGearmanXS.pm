@@ -8,10 +8,13 @@ use strict;
 use Carp;
 use Gearman::XS qw(:constants);
 use Gearman::XS::Worker;
-use JSON;
+use JSON::MaybeXS qw/JSON/;
+use Try::Tiny;
 
-our $VERSION = "2.000000";
+our $VERSION = "3.000000";
 $VERSION = eval $VERSION;
+
+my $json = JSON->new->allow_blessed->convert_blessed;
 
 =head1 NAME
  
@@ -26,9 +29,12 @@ McBain::WithGearmanXS - Load a McBain API as a Gearman worker
 
 	use warnings;
 	use strict;
-	use MyAPI -withGearmanXS;
+	use MyAPI;
+	use McBain::WithGearmanXS;
 
-	MyAPI->work('localhost', 4730);
+	my $api = MyAPI->new;
+	my $worker = McBain::WithGearmanXS->new($api);
+	$worker->work('localhost', 4730);
 
 =head1 DESCRIPTION
 
@@ -83,7 +89,7 @@ therefore all C<McBain> can do is indicate that the job has failed and no more.
 The first two I hope to overcome in a next version, or even a different runner, by creating
 just one queue that simply forwards the requests to C<McBain>.
 
-=head1 METHODS EXPORTED TO YOUR API
+=head1 METHODS
 
 =head2 work( [ $host, $port ] )
 
@@ -93,103 +99,56 @@ and C<4730> are used, respectively.
 
 The method never returns, so that the worker listens for jobs continuously.
 
-=head1 METHODS REQUIRED BY MCBAIN
-
-This runner module implements the following methods required by C<McBain>:
-
-=head2 init( )
-
-Creates the L</"work( $host, $port )"> method for the root topic of the API.
-
 =cut
 
-sub init {
-	my ($class, $target) = @_;
+sub new {
+	my ($class, $api) = @_;
 
-	if ($target->is_root) {
-		no strict 'refs';
-		*{"${target}::work"} = sub {
-			my ($pkg, $host, $port) = @_;
+	bless { api => $api }, $class;
+}
 
-			$host ||= 'localhost';
-			$port ||= 4730;
+sub work {
+	my ($self, $host, $port) = @_;
 
-			my $worker = Gearman::XS::Worker->new;
+	$host ||= 'localhost';
+	$port ||= 4730;
 
-			$class->_register_functions($worker, $pkg, $McBain::INFO{$target});
+	my $worker = Gearman::XS::Worker->new;
 
-			$worker->add_server($host, $port) == GEARMAN_SUCCESS
-				|| confess "Can't connect to gearman server at $host:$port, ".$worker->error;
+	$self->_register_functions($worker, $McBain::INFO{ref($self->{api})});
 
-			while (1) {
-				$worker->work();
-			}
-		};
+	$worker->add_server($host, $port) == GEARMAN_SUCCESS
+		|| confess "Can't connect to gearman server at $host:$port, ".$worker->error;
+
+	while (1) {
+		$worker->work();
 	}
 }
 
-=head2 generate_env( $job )
-
-Receives the L<Gearman::XS::Job> object and creates C<McBain>'s standard env
-hash-ref from it.
-
-=cut
-
-sub generate_env {
-	my ($self, $job) = @_;
-
-	confess { code => 400, error => "Namespace must match <METHOD>:<ROUTE> where METHOD is one of GET, POST, PUT, DELETE or OPTIONS" }
-		unless $job->function_name =~ m/^(GET|POST|PUT|DELETE|OPTIONS):[^:]+$/;
-
-	my ($method, $route) = split(/:/, $job->function_name);
-
-	return {
-		METHOD	=> $method,
-		ROUTE		=> $route,
-		PAYLOAD	=> $job->workload ? decode_json($job->workload) : {}
-	};
-}
-
-=head2 generate_res( $env, $res )
-
-Converts the result from an API method in JSON. Read the discussion under
-L</"DESCRIPTION"> for more info.
-
-=cut
-
-sub generate_res {
-	my ($self, $env, $res) = @_;
-
-	$res = { $env->{METHOD}.':'.$env->{ROUTE} => $res }
-		unless ref $res eq 'HASH';
-
-	return encode_json($res);
-}
-
-=head2 handle_exception( $err, $job )
-
-Simply calls C<< $job->send_fail >> to return a job failed
-status to the client.
-
-=cut
-
-sub handle_exception {
-	my ($class, $err, $job) = @_;
-
-	$job->send_fail;
-}
-
 sub _register_functions {
-	my ($class, $worker, $target, $topic) = @_;
+	my ($self, $worker, $info) = @_;
 
-	foreach my $route (keys %$topic) {
-		foreach my $meth (keys %{$topic->{$route}}) {
+	foreach my $route (grep { !/^_/ } keys %$info) {
+		foreach my $meth (grep { !/^_/ } keys %{$info->{$route}}) {
 			my $namespace = $meth.':'.$route;
 			$namespace =~ s!/$!!
 				unless $route eq '/';
 			unless (
 				$worker->add_function($namespace, 0, sub {
-					$target->call($_[0]);
+					my $job = shift;
+
+					try {
+						my $path = $job->function_name;
+						my $payload = $job->workload ? $json->decode($job->workload) : {};
+
+						my $res = $self->{api}->call($path, $payload, __PACKAGE__);
+						$res = { $path => $res }
+							unless ref $res eq 'HASH';
+
+						return $json->encode($res);
+					} catch {
+						$job->send_fail;
+					};
 				}, {}) == GEARMAN_SUCCESS
 			) {
 				confess "Can't register function $namespace, ".$worker->error;

@@ -1,6 +1,9 @@
 package Mendoza;
 
-use McBain;
+use McBain::Mo;
+use McBain 3.000000;
+
+has 'status';
 
 get '/' => (
 	description => 'Returns the name of the API',
@@ -14,9 +17,7 @@ get '/status' => (
 	cb => sub { shift->status }
 );
 
-sub new { bless { status => 'ALL IS WELL' }, shift };
-
-sub status { shift->{status} }
+sub BUILD { shift->status('ALL IS WELL') }
 
 1;
 __END__

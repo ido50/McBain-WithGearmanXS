@@ -1,6 +1,7 @@
 package Mendoza::Math::Constants;
 
-use McBain;
+use McBain::Mo;
+use McBain 3.000000;
 
 get '/' => (
 	cb => sub {
